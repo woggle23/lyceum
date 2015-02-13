@@ -50,24 +50,33 @@
       (swap! *external-reports* conj (format-report external message extra e))
       (error "*external-reports* is not bound, you probably want to run riemann with -Dlyceum.mode=real or -Dlyceum.mode=test"))))
 
+(defn- event-to-json [e]
+  (if (map? e)
+      (common/event-to-json e)
+      (interpose ", "(map common/event-to-json e))))
+
+(defn- merge-opts [opts external message e]
+  (merge opts
+         {:external_name external :external_message message} e))
+
 (defn real-report
   [external message opts & children]
   (let [external-s (name external)]
     (fn real-report-fn [e]
-      (info (str external " " message ": " opts " - " (common/event-to-json e)))
+      (info (apply str external " *** " message ": " opts " - " (event-to-json e)))
       (when-let [core @config/core]
         (pubsub/publish!
           (:pubsub core)
           "lyceum.external"
-          (common/event (merge opts
-                               {:external_name external :external_message message}
-                               e))))
+          (if (map? e)
+            (merge-opts opts external message e)
+            (mapv (partial merge-opts opts external message) e))))
       (streams/call-rescue e children))))
 
 (defn test-report
   [external message opts]
   (fn test-report-fn [e]
-    (info (str external " (TEST) " message ": " opts " - " (common/event-to-json e)))))
+    (info (apply str external " (TEST) " message ": " opts " - " (event-to-json e)))))
 
 (defmacro report
   [external message opts & children]

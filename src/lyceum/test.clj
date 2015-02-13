@@ -258,7 +258,7 @@
   (if (and actual-val (map? ref-val))
     (apply
       hash-map
-      (flatten
+      (apply concat []
         (for [[k v] (seq ref-val)]
           [k (match-actual v (k actual-val))])))
     actual-val))
