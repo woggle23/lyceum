@@ -34,7 +34,7 @@
 
 (defn- load-namespaces
   "Loads all namespaces not matching blacklist.
-  
+
   Namespaces that should not be loaded"
   [namespaces matches-blacklist?]
   (for [n namespaces
@@ -68,3 +68,11 @@
                      file-ns)]
     (let [ns-names (load-namespaces namespaces matches-blacklist?)]
       (core/rules-for-all opts (filter (comp not nil?) ns-names)))))
+
+(defn load-rules-from-dir [base-ns]
+  (let [ns-names (map #(-> % .getName)
+                      (filter #(.startsWith (-> % .getName name) base-ns) (all-ns)))]
+    (when (not-empty ns-names)
+      (doseq [ns ns-names]
+        (info (str "Loading namespace: " ns)))
+      (core/rules-for-all {} ns-names))))
