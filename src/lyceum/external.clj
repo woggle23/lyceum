@@ -26,7 +26,8 @@
   (:require [riemann.common :as common]
             [riemann.config :as config]
             [riemann.streams :as streams])
-  (:require [clojure.tools.logging :refer [info error]]))
+  (:require [clojure.tools.logging :refer [info error]]
+            [clojure.walk :as walk]))
 
 ;; If bound, will contain a list of _all_ external interactions that has
 ;; occured as formatted by `format-report`.
@@ -51,9 +52,7 @@
       (error "*external-reports* is not bound, you probably want to run riemann with -Dlyceum.mode=real or -Dlyceum.mode=test"))))
 
 (defn- event-to-json [e]
-  (if (map? e)
-      (common/event-to-json e)
-      (interpose ", "(map common/event-to-json e))))
+  (walk/postwalk #(if (map? %) (common/event-to-json %) %) e))
 
 (defn- merge-opts [opts external message e]
   (merge opts
@@ -70,7 +69,7 @@
           "lyceum.external"
           (if (map? e)
             (merge-opts opts external message e)
-            (mapv (partial merge-opts opts external message) e))))
+            (merge-opts opts external message {:events e}))))
       (streams/call-rescue e children))))
 
 (defn test-report
