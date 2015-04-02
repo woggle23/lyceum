@@ -1,4 +1,4 @@
-(defproject lyceum "0.1.1-SNAPSHOT"
+(defproject lyceum "0.1.2-SNAPSHOT"
   :description "A riemann plugin to build and deploy modular rules."
   :url "https://github.com/spotify/lyceum"
   :license {:name "Apache License 2.0"
@@ -6,6 +6,7 @@
   :dependencies
   [
    [org.clojure/clojure "1.5.1"]
+   [org.clojure/tools.namespace "0.2.10"]
    [riemann/riemann "0.2.5"]
    [http-kit "2.1.16"]
    [compojure "1.1.6"]

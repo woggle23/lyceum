@@ -16,7 +16,12 @@
 (ns lyceum.plugin
   (:require [clojure.java.classpath :as cp])
   (:require [clojure.tools.logging :refer [info warn error]])
-  (:require [lyceum.core :as core]))
+  (:require [lyceum.core :as core]
+            [clojure.java.io :as io]
+            [clojure.tools.namespace.file :as nsfile]
+            [clojure.tools.namespace.find :as nsfind]
+            [clojure.tools.namespace.track :as nstrack]
+            [clojure.tools.namespace.dependency :as nsdep]))
 
 (defn- fn-to-ns
   [path]
@@ -55,6 +60,30 @@
         (error e (str "Failed to require namespace: " n))
         nil))))
 
+(defn- ns-for-source [f]
+  [(second (nsfile/read-file-ns-decl f)) (.getPath f)])
+
+(defn- ns-fname-for-dir
+  "Takes a path dir and returns a map in the form {ns-symbol file-path} for files found in dir"
+  [path]
+  (apply hash-map (->> (nsfind/find-clojure-sources-in-dir (io/file path))
+                       (map ns-for-source)
+                       flatten)))
+
+(defn- order-dependencies
+  "Takes a list of files and returns a Dependency ordered list of namespaces"
+  [files]
+  (let [{:keys [dependencies dependents]} (-> (nsfile/add-files (nstrack/tracker) files)
+                                              :clojure.tools.namespace.track/deps)]
+    (nsdep/topo-sort (nsdep/->MapDependencyGraph dependencies dependents))))
+
+(defn- load-files
+  "Takes list of dependency namespaces (deps), and a list of files (ns-files). Loads any deps found in ns-files"
+  [deps ns-files]
+  (doseq [n deps]
+    (when-let [f (ns-files n)]
+      (load-file (ns-files n)))))
+
 (defn load-rules
   [base-ns & {:keys [opts blacklist]
               :or {opts {} blacklist []}}]
@@ -69,10 +98,15 @@
     (let [ns-names (load-namespaces namespaces matches-blacklist?)]
       (core/rules-for-all opts (filter (comp not nil?) ns-names)))))
 
-(defn load-rules-from-dir [base-ns]
-  (let [ns-names (map #(-> % .getName)
-                      (filter #(.startsWith (-> % .getName name) base-ns) (all-ns)))]
-    (when (not-empty ns-names)
-      (doseq [ns ns-names]
-        (info (str "Loading namespace: " ns)))
-      (core/rules-for-all {} ns-names))))
+(defn load-rules-in-dir
+  "Loads rules from specified path"
+  [base-rules-ns path & {:keys [opts blacklist]
+                         :or {opts {} blacklist []}}]
+  (let [ns-files (ns-fname-for-dir path)
+        deps (order-dependencies (vals ns-files))
+        matches-blacklist? (blacklist-matcher blacklist)
+        namespaces (-> (filter #(.startsWith (-> % .getName name) base-rules-ns) deps)
+                       (load-namespaces matches-blacklist?))]
+    (load-files deps ns-files)
+    (when (not-empty namespaces)
+      (core/rules-for-all opts namespaces))))
